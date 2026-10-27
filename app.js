@@ -1,16 +1,28 @@
 const $=s=>document.querySelector(s),app=$('#app');
 const BOTS=[{n:'LogicLlama',r:1180,acc:.55,spd:70},{n:'FlawFinder',r:1320,acc:.68,spd:60},{n:'NecessaryNora',r:1450,acc:.78,spd:52},{n:'ContrapositiveKing',r:1580,acc:.86,spd:45},{n:'170Club',r:1720,acc:.93,spd:38},{n:'NewbieNate',r:1050,acc:.45,spd:85}];
 const BADGES=[
- {id:'first',name:'First win',desc:'Win a ranked duel'},
- {id:'streak5',name:'5-streak',desc:'Win 5 ranked duels in a row'},
- {id:'perfect',name:'Perfect 5/5',desc:'Get every question right in a set'},
- {id:'daily7',name:'7-day streak',desc:'Finish the daily challenge 7 days running'}
+ {id:'first',name:'First win',desc:'Win a ranked duel',icon:'trophy'},
+ {id:'streak5',name:'5-streak',desc:'Win 5 ranked duels in a row',icon:'flame'},
+ {id:'perfect',name:'Perfect 5/5',desc:'Get every question right in a set',icon:'spark'},
+ {id:'daily7',name:'7-day streak',desc:'Finish the daily challenge 7 days running',icon:'cal'}
 ];
 const PER=90,COUNT_FRAMES=['3','2','1','Go'];
-let S=load(),duel=null,tick=null,wait=null,gen=0;
+let S=load(),duel=null,tick=null,wait=null,fxTimer=null,gen=0,audioCtx=null;
 
+function svg(path){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;}
+const ICONS={
+ trophy:svg('<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>'),
+ flame:svg('<path d="M12 3s6 5 6 10a6 6 0 0 1-12 0c0-2 1-3 2-4 0 2 2 2 2 0 0-2 2-4 2-6z"/>'),
+ spark:svg('<path d="M12 2l1.6 6.2L20 10l-6.4 1.8L12 18l-1.6-6.2L4 10l6.4-1.8L12 2z"/>'),
+ cal:svg('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>'),
+ sword:svg('<path d="M14.5 4.5l5 5M13 6l5 5-8 8H5v-5l8-8z"/>'),
+ target:svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/>'),
+ users:svg('<path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 4.13a3 3 0 0 1 0 5.74"/>'),
+ vol:svg('<path d="M4 10h4l5-4v12l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a7 7 0 0 1 0 11"/>'),
+ mute:svg('<path d="M4 10h4l5-4v12l-5-4H4zM19 9l-6 6M13 9l6 6"/>')
+};
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function blank(){return {name:'You',rating:1200,w:0,l:0,hist:[],attempts:[],streak:0,badges:[],dailyLast:'',dailyStreak:0,dailyBest:null};}
+function blank(){return {name:'You',rating:1200,w:0,l:0,hist:[],attempts:[],streak:0,badges:[],dailyLast:'',dailyStreak:0,dailyBest:null,mute:false};}
 function load(){
  let raw={};
  try{raw=JSON.parse(localStorage.getItem('arena')||'{}')||{};}catch(e){raw={};}
@@ -20,11 +32,17 @@ function load(){
  if(!Array.isArray(s.badges))s.badges=[];
  if(typeof s.name!=='string'||!s.name.trim())s.name='You';
  s.name=s.name.trim().slice(0,20);
+ s.mute=!!s.mute;
  return s;
 }
 function save(){try{localStorage.setItem('arena',JSON.stringify(S));}catch(e){}}
 function tierName(r){r=Math.round(Number(r)||0);if(r>=1900)return 'Diamond';if(r>=1700)return 'Platinum';if(r>=1500)return 'Gold';if(r>=1300)return 'Silver';return 'Bronze';}
-function tierHTML(r){const t=tierName(r);return `<span class="tier ${t.toLowerCase()}">${t}</span>`;}
+function emblem(r,lg){
+ const t=tierName(r).toLowerCase();
+ return `<span class="emblem ${t}${lg?' lg':''}" aria-hidden="true"><svg viewBox="0 0 64 72"><path fill="currentColor" d="M32 2 58 14v22c0 16-10 28-26 34C16 64 6 52 6 36V14Z"/></svg><b>${t[0].toUpperCase()}</b></span>`;
+}
+function tierHTML(r){const t=tierName(r);return `<span class="tier ${t.toLowerCase()}">${emblem(r)} ${t}</span>`;}
+function initial(n){return esc(String(n||'?').trim().charAt(0).toUpperCase()||'?');}
 function today(){return new Date().toISOString().slice(0,10);}
 function prevDay(day){const d=new Date(day+'T00:00:00Z');d.setUTCDate(d.getUTCDate()-1);return d.toISOString().slice(0,10);}
 function shownStreak(){const t=today();if(S.dailyLast===t||S.dailyLast===prevDay(t))return S.dailyStreak||0;return 0;}
@@ -37,21 +55,56 @@ function dailyIds(day){
  for(let i=idx.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]];}
  return idx.slice(0,5);
 }
-function cancel(){gen++;clearInterval(tick);tick=null;clearTimeout(wait);wait=null;}
-function header(){$('#me').innerHTML=`${esc(S.name)} · ${tierHTML(S.rating)} · ${Math.round(S.rating)} Elo · ${S.w}W-${S.l}L`;}
+function cancel(){gen++;clearInterval(tick);tick=null;clearTimeout(wait);wait=null;clearTimeout(fxTimer);fxTimer=null;}
+function show(html){app.innerHTML=html;app.classList.remove('in');void app.offsetWidth;app.classList.add('in');}
+function beep(freq,dur,type,gain){
+ if(S.mute)return;
+ try{
+  audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type||'sine';o.frequency.value=freq;g.gain.value=gain||0.03;
+  o.connect(g);g.connect(audioCtx.destination);o.start();
+  g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+dur);
+  o.stop(audioCtx.currentTime+dur);
+ }catch(e){}
+}
+function soundOk(){beep(660,.08,'sine',.035);setTimeout(()=>beep(880,.12,'sine',.03),70);}
+function soundBad(){beep(180,.16,'triangle',.03);}
+function soundTick(){beep(540,.05,'sine',.025);}
+function renderMute(){
+ const b=$('#mute');if(!b)return;
+ b.setAttribute('aria-pressed',S.mute?'true':'false');
+ b.setAttribute('aria-label',S.mute?'Unmute sound effects':'Mute sound effects');
+ b.innerHTML=S.mute?ICONS.mute:ICONS.vol;
+}
+function header(){$('#me').innerHTML=`<span class="who">${esc(S.name)}</span> ${tierHTML(S.rating)} <span>${Math.round(S.rating)} Elo</span> <span class="muted">${S.w}W-${S.l}L</span>`;}
+function burst(el){
+ const fx=$('#fx');if(!fx||!el)return;
+ const r=el.getBoundingClientRect(),colors=['#34d399','#a78bfa','#fbbf24','#22d3ee','#fb7185'];
+ for(let i=0;i<18;i++){
+  const s=document.createElement('i');s.className='bit';
+  s.style.left=(r.left+r.width/2)+'px';s.style.top=(r.top+r.height/2)+'px';
+  s.style.background=colors[i%colors.length];
+  s.style.setProperty('--x',(Math.random()*180-90)+'px');
+  s.style.setProperty('--y',(-30-Math.random()*140)+'px');
+  fx.appendChild(s);setTimeout(()=>s.remove(),900);
+ }
+}
 function board(){
  const rows=[...BOTS.map(b=>({n:b.n,r:b.r})),{n:S.name+' (you)',r:S.rating,you:1}].sort((a,b)=>b.r-a.r);
- return '<table>'+rows.map((x,i)=>`<tr class="${x.you?'you':''}"><td>#${i+1}</td><td>${esc(x.n)}</td><td>${tierHTML(x.r)}</td><td style="text-align:right">${Math.round(x.r)}</td></tr>`).join('')+'</table>';
+ return '<table>'+rows.map((x,i)=>`<tr class="${x.you?'you':''}"><td>#${i+1}</td><td><span class="who">${emblem(x.r)} ${esc(x.n)}</span></td><td style="text-align:right">${tierHTML(x.r)} ${Math.round(x.r)}</td></tr>`).join('')+'</table>';
 }
-function badgesHTML(){return `<div class="badges">${BADGES.map(b=>`<div class="badge ${S.badges.includes(b.id)?'on':''}"><b>${esc(b.name)}</b><span class="muted">${esc(b.desc)}</span></div>`).join('')}</div>`;}
+function badgesHTML(){return `<div class="badges">${BADGES.map(b=>`<div class="badge ${S.badges.includes(b.id)?'on':''}"><span class="bico">${ICONS[b.icon]}</span><div><b>${esc(b.name)}</b><span class="muted">${esc(b.desc)}</span></div></div>`).join('')}</div>`;}
 function goHome(){if(location.search)history.replaceState(null,'',location.pathname);home();}
 function home(){
  cancel();duel=null;header();
  const best=S.dailyBest&&S.dailyBest.day===today()?` · today ${S.dailyBest.me}/5`:'';
- app.innerHTML=`<div class="grid"><div class="card"><span class="tag">LOGICAL REASONING · RANKED</span><h1>Head-to-head LSAT duels.</h1><p class="muted">Same 5 LR questions, same clock. Beat your opponent on accuracy — speed breaks ties. Win to climb the ladder.</p><div class="stats"><div><div class="muted">Rating</div><div class="big" style="font-size:40px">${Math.round(S.rating)}</div><div class="muted">${tierHTML(S.rating)}</div></div><div><div class="muted">Record</div><div class="big" style="font-size:40px">${S.w}-${S.l}</div></div></div><p class="muted">${esc('Daily streak: '+shownStreak()+best)}</p><div class="actions"><button id="go">⚔️ Find Ranked Duel</button><button id="daily" class="ghost">📅 Daily challenge</button><button id="stats" class="ghost">Pattern stats</button><button id="nm" class="ghost">Change name</button></div></div><div class="card"><h2>🏆 Leaderboard</h2>${board()}</div></div>
+ const streak=shownStreak();
+ show(`<div class="home-grid"><div class="card hero"><div class="hero-top">${emblem(S.rating,true)}<div><span class="tag">LOGICAL REASONING</span><h1>Outreason the field.</h1></div></div><p class="lede">Same five questions. Same clock. Accuracy wins, speed breaks the tie, and every pattern you miss becomes the next drill.</p><div class="statrow"><div class="stat"><b>${Math.round(S.rating)}</b><span>Elo · ${esc(tierName(S.rating))}</span></div><div class="stat"><b>${S.w}-${S.l}</b><span>Record</span></div><div class="stat"><b>${streak}</b><span>${esc('Daily streak: '+streak+best)}</span></div></div><div class="modes"><button type="button" class="mode" id="go"><span class="ico ranked">${ICONS.sword}</span><span><b>Ranked</b><small>Climb the ladder</small></span></button><button type="button" class="mode" id="daily"><span class="ico daily">${ICONS.cal}</span><span><b>Daily</b><small>Same set for everyone</small></span></button><button type="button" class="mode" id="stats"><span class="ico weak">${ICONS.target}</span><span><b>Weak spots</b><small>Train your lowest patterns</small></span></button><button type="button" class="mode" id="share"><span class="ico friend">${ICONS.users}</span><span><b>Challenge a friend</b><small>Play a set, then share the link</small></span></button></div><div class="actions"><button type="button" class="ghost" id="nm">Change name</button></div></div><div class="card"><h2>Leaderboard</h2>${board()}</div></div>
 <div class="card"><h2>Badges</h2>${badgesHTML()}</div>
-<div class="card"><h2>Recent matches</h2>${S.hist.length?S.hist.slice(-5).reverse().map(h=>`<div class="muted">${h.res==='W'?'✅':h.res==='L'?'❌':'➖'} vs ${esc(h.opp)} · ${h.me}/5 vs ${h.op}/5 · ${h.d>0?'+':''}${h.d}</div>`).join(''):'<p class="muted">No matches yet.</p>'}</div>`;
- $('#go').onclick=matchmake;$('#daily').onclick=startDaily;$('#stats').onclick=statsPage;
+<div class="card"><h2>Recent matches</h2>${S.hist.length?S.hist.slice(-5).reverse().map(h=>`<div class="match"><span>${h.res==='W'?'✅':h.res==='L'?'❌':'➖'} vs ${esc(h.opp)} · ${h.me}/5 vs ${h.op}/5 · ${h.d>0?'+':''}${h.d}</span></div>`).join(''):'<p class="muted">No matches yet.</p>'}</div>`);
+ $('#go').onclick=matchmake;$('#daily').onclick=startDaily;$('#stats').onclick=statsPage;$('#share').onclick=startShare;
  $('#nm').onclick=()=>{const n=prompt('Display name',S.name);if(n&&n.trim()){S.name=n.trim().slice(0,20);save();home();}};
 }
 function patternRows(){
@@ -79,8 +132,13 @@ function statsPage(){
  cancel();duel=null;header();
  const rows=patternRows().sort((a,b)=>((a.n===0)-(b.n===0))||((a.acc??1)-(b.acc??1))||((b.avg||0)-(a.avg||0)));
  const weak=weakSet(rows),played=rows.some(r=>r.n>0);
- const body=rows.map(r=>`<tr class="${weak.has(r.p)?'weak':''}"><td>${esc(r.p)}${weak.has(r.p)?' · weak spot':''}</td><td>${r.n}</td><td>${r.n?Math.round(r.acc*100)+'%':'—'}</td><td>${r.n?r.avg.toFixed(1)+'s':'—'}</td></tr>`).join('');
- app.innerHTML=`<div class="card"><h1>Pattern stats</h1><p class="muted">Accuracy and average time from answers saved in this browser. Weak spots are your lowest patterns.</p><table><tr><td>Pattern</td><td>Tries</td><td>Accuracy</td><td>Avg time</td></tr>${body}</table><div class="actions"><button id="train"${played?'':' disabled'}>Train weak spots</button><button class="ghost" id="hm">Home</button></div></div>`;
+ const body=rows.map(r=>{
+  const pct=r.n?Math.round(r.acc*100):0;
+  const fill=r.n?Math.max(pct,8):0;
+  return `<div class="chart-row${weak.has(r.p)?' weak':''}"><div class="chart-top"><span class="chart-name">${esc(r.p)}${weak.has(r.p)?' · weak spot':''}</span><span class="muted">${r.n?pct+'% · '+r.avg.toFixed(1)+'s · '+r.n+' tries':'—'}</span></div><div class="chart-bar"><i data-w="${fill}%"></i></div></div>`;
+ }).join('');
+ show(`<div class="card"><h1>Pattern stats</h1><p class="lede">Accuracy and average time from answers saved in this browser. Weak spots are your lowest patterns.</p><div class="chart">${body}</div><div class="actions"><button type="button" class="primary" id="train"${played?'':' disabled'}>Train weak spots</button><button type="button" class="ghost" id="hm">Home</button></div></div>`);
+ requestAnimationFrame(()=>document.querySelectorAll('.chart-bar i').forEach(el=>{el.style.width=el.dataset.w;}));
  if(played)$('#train').onclick=startTrain;
  $('#hm').onclick=goHome;
 }
@@ -88,11 +146,12 @@ function pickOpp(){return [...BOTS].sort((a,b)=>Math.abs(a.r-S.rating)-Math.abs(
 function makeBot(qs,opp){return qs.map(()=>({ok:Math.random()<opp.acc,t:Math.max(12,opp.spd*(0.6+Math.random()*0.8))}));}
 function matchmake(){
  cancel();
- app.innerHTML=`<div class="card" style="text-align:center"><h2>Searching for opponent…</h2><p class="muted">Matching near ${Math.round(S.rating)} Elo</p></div>`;
+ show(`<div class="card count"><div class="pulse-ring"></div><h2>Searching for opponent…</h2><p class="muted">Matching near ${Math.round(S.rating)} Elo</p></div>`);
  const g=gen;
  wait=setTimeout(()=>{if(g!==gen)return;const opp=pickOpp(),qs=shuffle(QUESTIONS).slice(0,5);begin({mode:'ranked',label:'Ranked duel',opp,qs,bot:makeBot(qs,opp)});},1200);
 }
 function startTrain(){const qs=trainQuestions(),opp=pickOpp();begin({mode:'train',label:'Weak-spot duel',opp,qs,bot:makeBot(qs,opp)});}
+function startShare(){const qs=shuffle(QUESTIONS).slice(0,5),opp=pickOpp();begin({mode:'share',label:'Challenge set',opp,qs,bot:makeBot(qs,opp)});}
 function startDaily(){const qs=dailyIds(today()).map(i=>QUESTIONS[i]);begin({mode:'daily',label:'Daily challenge · '+today()+' UTC',qs});}
 function countdown(label,done){
  const g=++gen;clearInterval(tick);tick=null;let i=0;
@@ -100,7 +159,8 @@ function countdown(label,done){
   if(g!==gen)return;
   if(i>=COUNT_FRAMES.length){done();return;}
   const word=COUNT_FRAMES[i++];
-  app.innerHTML=`<div class="card count"><div class="big">${word}</div><p class="muted">${esc(label)}</p></div>`;
+  show(`<div class="card count"><div class="big">${word}</div><p class="muted">${esc(label)}</p></div>`);
+  if(word==='Go')beep(880,.14,'sine',.04);else soundTick();
   wait=setTimeout(step,word==='Go'?650:1000);
  };
  step();
@@ -111,20 +171,20 @@ function start(opts){
  render();tick=setInterval(update,250);
 }
 function playersHTML(){
- const mine=`<div class="pl"><b>${esc(S.name)}</b> <span class="muted">${Math.round(S.rating)} ${tierHTML(S.rating)}</span><div class="bar"><i style="width:${duel.i*20}%"></i></div><span class="muted">${duel.i}/5 answered</span></div>`;
+ const mine=`<div class="pl"><div class="pl-top"><span class="avatar">${initial(S.name)}</span><div><b>${esc(S.name)}</b><div class="muted">${Math.round(S.rating)} ${tierHTML(S.rating)}</div></div></div><div class="bar"><i style="width:${duel.i*20}%"></i></div><span class="muted">${duel.i}/5 answered</span></div>`;
  let other;
- if(duel.bot)other=`<div class="pl"><b>${esc(duel.opp.n)}</b> <span class="muted">${duel.opp.r} ${tierHTML(duel.opp.r)}</span><div class="bar opp"><i id="ob" style="width:0"></i></div><span class="muted" id="ot">0/5 answered</span></div>`;
- else if(duel.friend)other=`<div class="pl"><b>${esc(duel.friend.name)}</b> <span class="muted">to beat</span><div class="bar opp"><i style="width:${duel.friend.me*20}%"></i></div><span class="muted">${duel.friend.me}/5 · ${duel.friend.sec.toFixed(1)}s</span></div>`;
- else other=`<div class="pl"><b>Daily</b> <span class="muted">${esc(today())} UTC</span><div class="bar opp"><i style="width:100%"></i></div><span class="muted">Streak ${shownStreak()}</span></div>`;
+ if(duel.bot)other=`<div class="pl"><div class="pl-top"><span class="avatar opp">${initial(duel.opp.n)}</span><div><b>${esc(duel.opp.n)}</b><div class="muted">${duel.opp.r} ${tierHTML(duel.opp.r)}</div></div></div><div class="bar opp"><i id="ob" style="width:0"></i></div><span class="muted" id="ot">0/5 answered</span></div>`;
+ else if(duel.friend)other=`<div class="pl"><div class="pl-top"><span class="avatar opp">${initial(duel.friend.name)}</span><div><b>${esc(duel.friend.name)}</b><div class="muted">to beat</div></div></div><div class="bar opp"><i style="width:${duel.friend.me*20}%"></i></div><span class="muted">${duel.friend.me}/5 · ${duel.friend.sec.toFixed(1)}s</span></div>`;
+ else other=`<div class="pl"><div class="pl-top"><span class="avatar opp">D</span><div><b>Daily</b><div class="muted">${esc(today())} UTC</div></div></div><div class="bar opp"><i style="width:100%"></i></div><span class="muted">Streak ${shownStreak()}</span></div>`;
  return `<div class="card"><div class="players">${mine}${other}</div></div>`;
 }
 function render(){
  duel.busy=false;duel.sel=null;
  const q=duel.qs[duel.i];
- app.innerHTML=playersHTML()+`<div class="card"><span class="tag">Q${duel.i+1}/5 · ${esc(q.t)}</span><span class="timer" id="tm">1:30</span><div class="stim">${esc(q.s)}</div><div class="stem">${esc(q.q)}</div><p class="muted hint">Tap an answer to select it, then tap it again to submit.</p>${q.c.map((c,k)=>`<div class="ans" data-k="${k}"><button type="button" class="ch" data-k="${k}"><b>(${'ABCDE'[k]})</b> ${esc(c)}</button><button type="button" class="xx" hidden aria-label="Deselect">×</button></div>`).join('')}</div>`;
+ show(playersHTML()+`<div class="card qcard"><div class="qtop"><span class="tag">Q${duel.i+1}/5 · ${esc(q.t)}</span><span class="timer" id="tm">1:30</span></div><div class="stim">${esc(q.s)}</div><div class="stem">${esc(q.q)}</div><p class="muted hint">Tap an answer to select it, then tap it again to submit.</p>${q.c.map((c,k)=>`<div class="ans" data-k="${k}"><button type="button" class="ch" data-k="${k}"><span class="letter">${'ABCDE'[k]}</span><span>${esc(c)}</span></button><button type="button" class="xx" hidden aria-label="Deselect">×</button></div>`).join('')}</div>`);
  document.querySelectorAll('.ans').forEach(row=>{
   const k=+row.dataset.k;
-  row.querySelector('.ch').onclick=()=>{if(!duel||duel.busy)return;if(duel.sel===k)answer(k);else{duel.sel=k;paintSel();}};
+  row.querySelector('.ch').onclick=()=>{if(!duel||duel.busy)return;if(duel.sel===k)answer(k);else{duel.sel=k;paintSel();beep(420,.04,'sine',.02);}};
   row.querySelector('.xx').onclick=e=>{e.preventDefault();e.stopPropagation();if(!duel||duel.busy)return;duel.sel=null;paintSel();};
  });
  update();
@@ -139,11 +199,20 @@ function paintSel(){
 function botProgress(){let el=(Date.now()-duel.t0)/1000,c=0,acc=0;for(const b of duel.bot){acc+=b.t;if(el>=acc)c++;else break;}return c;}
 function fmt(left){const s=Math.max(0,left);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
 function update(){
- if(!duel)return;
+ if(!duel||duel.busy)return;
  const left=PER-Math.floor((Date.now()-duel.qStart)/1000),t=$('#tm');
  if(t){t.textContent=fmt(left);t.className='timer'+(left<=15?' low':'');}
- if(duel.bot){const bp=botProgress(),ob=$('#ob'),ot=$('#ot');if(ob)ob.style.width=bp*20+'%';if(ot)ot.textContent=`${bp}/5 answered`;}
+ if(duel.bot){
+  const bp=botProgress(),ob=$('#ob'),ot=$('#ot'),next=`${bp}/5 answered`;
+  if(ob)ob.style.width=bp*20+'%';
+  if(ot&&ot.textContent!==next){ot.textContent=next;ot.classList.remove('pop');void ot.offsetWidth;ot.classList.add('pop');}
+ }
  if(left<=0)answer(-1);
+}
+function advance(){
+ if(!duel)return;
+ duel.i++;duel.qStart=Date.now();duel.sel=null;
+ if(duel.i<5)render();else finish();
 }
 function answer(k){
  if(!duel||duel.busy)return;
@@ -153,8 +222,14 @@ function answer(k){
  S.attempts.push({p:q.pattern,ok:ok?1:0,t});
  if(S.attempts.length>400)S.attempts.splice(0,S.attempts.length-400);
  save();
- duel.i++;duel.qStart=Date.now();duel.sel=null;
- if(duel.i<5)render();else finish();
+ const g=gen;
+ const go=()=>{if(g!==gen||!duel)return;advance();};
+ if(k<0){go();return;}
+ const row=document.querySelector(`.ans[data-k="${k}"] .ch`);
+ if(ok){if(row){row.classList.add('pulse-ok');burst(row);}soundOk();}
+ else{if(row)row.classList.add('shake');soundBad();}
+ const delay=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches?80:420;
+ fxTimer=setTimeout(go,delay);
 }
 function recordDaily(me,mt){
  const day=today(),first=S.dailyLast!==day;
@@ -178,10 +253,20 @@ function friendFromParams(params){
  if(!name)name='Friend';
  return {qs:ids.map(i=>QUESTIONS[i]),me,sec,name};
 }
+function animateNum(el,from,to){
+ const t0=performance.now(),dur=700;
+ const step=now=>{
+  if(!el.isConnected)return;
+  const p=Math.min(1,(now-t0)/dur),eased=1-Math.pow(1-p,3);
+  el.textContent=String(Math.round(from+(to-from)*eased));
+  if(p<1)requestAnimationFrame(step);
+ };
+ requestAnimationFrame(step);
+}
 function finish(){
  clearInterval(tick);tick=null;
  const me=duel.ans.filter(a=>a.ok).length,mt=duel.ans.reduce((s,a)=>s+a.t,0);
- let score=null,op=0,ot=0,d=0,headline,sub,cards='';
+ let score=null,op=0,ot=0,d=0,headline,sub,cards='',prevRating=S.rating;
  if(duel.bot){
   op=duel.bot.filter(b=>b.ok).length;ot=duel.bot.reduce((s,b)=>s+b.t,0);
   score=me>op?1:me<op?0:(mt<ot?1:mt>ot?0:.5);
@@ -191,8 +276,9 @@ function finish(){
    S.hist.push({opp:duel.opp.n,me,op,d,res:score===1?'W':score===0?'L':'D'});
    S.streak=score===1?(S.streak||0)+1:0;
    headline=score===1?'VICTORY':score===0?'DEFEAT':'DRAW';
-   sub=`Rating ${Math.round(S.rating)} (<b>${d>0?'+':''}${d}</b>) · ${tierHTML(S.rating)}`;
-  }else{headline=score===1?'VICTORY':score===0?'DEFEAT':'DRAW';sub='Practice duel · rating unchanged';}
+   sub=`Rating <b id="elo" class="elo-num">${prevRating}</b> <b class="delta ${d>0?'up':d<0?'down':''}">${d>0?'+':''}${d}</b> · ${tierHTML(S.rating)}`;
+  }else if(duel.mode==='share'){headline=score===1?'VICTORY':score===0?'DEFEAT':'DRAW';sub='Share the link. Rating unchanged.';}
+  else{headline=score===1?'VICTORY':score===0?'DEFEAT':'DRAW';sub='Practice duel · rating unchanged';}
   cards=`<div class="players" style="text-align:left"><div class="card"><h2>${esc(S.name)}</h2><div class="big" style="font-size:36px">${me}/5</div><div class="muted">${mt.toFixed(1)}s total · ${(mt/5).toFixed(1)}s avg</div></div><div class="card"><h2>${esc(duel.opp.n)}</h2><div class="big" style="font-size:36px">${op}/5</div><div class="muted">${ot.toFixed(1)}s total · ${(ot/5).toFixed(1)}s avg</div></div></div>`;
  }else if(duel.friend){
   op=duel.friend.me;ot=duel.friend.sec;
@@ -212,14 +298,16 @@ function finish(){
  if((S.dailyStreak||0)>=7&&S.dailyLast===today())give('daily7');
  const fresh=S.badges.filter(id=>!before.has(id));
  save();header();
+ if(score===1)soundOk();else if(score===0)soundBad();
  const klass=score===1?'win':score===0?'loss':'';
- const again=duel.mode==='ranked'?'⚔️ Rematch queue':duel.mode==='train'?'Train again':duel.mode==='daily'?'Play daily again':'Replay challenge';
+ const again=duel.mode==='ranked'?'Rematch queue':duel.mode==='train'?'Train again':duel.mode==='daily'?'Play daily again':duel.mode==='share'?'New challenge set':'Replay challenge';
  const url=challengeURL(duel.qs,me,mt);
  const review=duel.qs.map((q,i)=>{const a=duel.ans[i];const yours=a.ok?'Correct':'You: '+(a.k<0?'timed out':'('+'ABCDE'[a.k]+')');const oppBit=duel.bot?` · opp ${duel.bot[i].ok?'✓':'✗'}`:'';return `<div class="rev ${a.ok?'':'x'}"><b>Q${i+1} · ${esc(q.t)}</b> — ${esc(yours)} · Answer (${'ABCDE'[q.a]}) · ${a.t.toFixed(1)}s${oppBit}<br><b class="pat">Pattern: ${esc(q.pattern)}</b><br><span class="muted">${esc(q.e)}</span></div>`;}).join('');
- app.innerHTML=`<div class="card" style="text-align:center"><div class="big ${klass}">${headline}</div><p>${sub}</p>${fresh.length?`<p>Badge unlocked: ${fresh.map(id=>esc(BADGES.find(b=>b.id===id).name)).join(', ')}</p>`:''}${cards}<div class="actions" style="justify-content:center"><button id="again">${again}</button><button class="ghost" id="hm">Home</button></div></div>
-<div class="card"><h2>Challenge a friend</h2><p class="muted">Same five questions. They'll see your score and time.</p><input id="link" class="link" readonly value="${esc(url)}"><div class="actions"><button id="copy" class="ghost">Copy link</button></div></div>
-<div class="card"><h2>Review</h2>${review}</div>`;
- $('#again').onclick=()=>{if(duel.mode==='ranked')matchmake();else if(duel.mode==='train')startTrain();else if(duel.mode==='daily')startDaily();else begin({mode:'friend',label:'Friend challenge',qs:duel.qs,friend:duel.friend});};
+ show(`<div class="card" style="text-align:center"><div class="big ${klass}">${headline}</div><p>${sub}</p>${fresh.length?`<p>Badge unlocked: ${fresh.map(id=>esc(BADGES.find(b=>b.id===id).name)).join(', ')}</p>`:''}${cards}<div class="actions" style="justify-content:center"><button type="button" class="primary" id="again">${again}</button><button type="button" class="ghost" id="hm">Home</button></div></div>
+<div class="card"><h2>Challenge a friend</h2><p class="muted">Same five questions. They'll see your score and time.</p><input id="link" class="link" readonly value="${esc(url)}"><div class="actions"><button type="button" id="copy" class="ghost">Copy link</button></div></div>
+<div class="card"><h2>Review</h2>${review}</div>`);
+ const elo=$('#elo');if(elo)animateNum(elo,prevRating,S.rating);
+ $('#again').onclick=()=>{if(duel.mode==='ranked')matchmake();else if(duel.mode==='train')startTrain();else if(duel.mode==='daily')startDaily();else if(duel.mode==='share')startShare();else begin({mode:'friend',label:'Friend challenge',qs:duel.qs,friend:duel.friend});};
  $('#hm').onclick=goHome;
  $('#copy').onclick=async()=>{const el=$('#link');try{await navigator.clipboard.writeText(el.value);$('#copy').textContent='Copied';}catch(e){el.focus();el.select();$('#copy').textContent='Select the link to copy';}};
 }
@@ -227,10 +315,11 @@ function friendIntro(params){
  cancel();header();
  const ch=friendFromParams(params);
  if(!ch){goHome();return;}
- app.innerHTML=`<div class="card"><span class="tag">FRIEND CHALLENGE</span><h1>${esc(ch.name)} challenged you.</h1><p class="muted">Same 5 questions. ${esc(ch.name)} scored ${ch.me}/5 in ${ch.sec.toFixed(1)}s. Accuracy wins; time breaks ties.</p><div class="actions"><button id="accept">Accept challenge</button><button class="ghost" id="hm">Not now</button></div></div>`;
+ show(`<div class="card"><span class="tag">FRIEND CHALLENGE</span><h1>${esc(ch.name)} challenged you.</h1><p class="lede">Same 5 questions. ${esc(ch.name)} scored ${ch.me}/5 in ${ch.sec.toFixed(1)}s. Accuracy wins; time breaks ties.</p><div class="actions"><button type="button" class="primary" id="accept">Accept challenge</button><button type="button" class="ghost" id="hm">Not now</button></div></div>`);
  $('#accept').onclick=()=>begin({mode:'friend',label:'Friend challenge',qs:ch.qs,friend:{name:ch.name,me:ch.me,sec:ch.sec}});
  $('#hm').onclick=goHome;
 }
-function boot(){const params=new URLSearchParams(location.search);if(params.get('duel'))friendIntro(params);else home();}
+function boot(){renderMute();const params=new URLSearchParams(location.search);if(params.get('duel'))friendIntro(params);else home();}
 $('#logo').onclick=()=>goHome();
+$('#mute').onclick=()=>{S.mute=!S.mute;save();renderMute();if(!S.mute)beep(660,.08,'sine',.03);};
 boot();
