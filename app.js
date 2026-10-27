@@ -6,7 +6,7 @@ const BADGES=[
  {id:'perfect',name:'Perfect 5/5',desc:'Get every question right in a set',icon:'spark'},
  {id:'daily7',name:'7-day streak',desc:'Finish the daily challenge 7 days running',icon:'cal'}
 ];
-const PER=90,COUNT_FRAMES=['3','2','1','Go'];
+const PER=90,PACE=85,LENGTHS=[5,15,30,50],COUNT_FRAMES=['3','2','1','Go'];
 let S=load(),duel=null,tick=null,wait=null,fxTimer=null,gen=0,audioCtx=null;
 
 function svg(path){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;}
@@ -24,7 +24,7 @@ const ICONS={
  moon:svg('<path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z"/>')
 };
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function blank(){return {name:'You',rating:1200,w:0,l:0,hist:[],attempts:[],streak:0,badges:[],dailyLast:'',dailyStreak:0,dailyBest:null,mute:true,theme:'light'};}
+function blank(){return {name:'You',rating:1200,w:0,l:0,hist:[],attempts:[],streak:0,badges:[],dailyLast:'',dailyStreak:0,dailyBest:null,mute:true,theme:'light',len:5,section:false};}
 function load(){
  let raw={};
  try{raw=JSON.parse(localStorage.getItem('arena')||'{}')||{};}catch(e){raw={};}
@@ -37,6 +37,8 @@ function load(){
  s.name=s.name.trim().slice(0,20);
  s.theme=hadTheme?raw.theme:'light';
  s.mute=hadTheme?!!s.mute:true;
+ if(!LENGTHS.includes(s.len))s.len=5;
+ s.section=!!s.section;
  return s;
 }
 function save(){try{localStorage.setItem('arena',JSON.stringify(S));}catch(e){}}
@@ -112,6 +114,12 @@ function board(){
 }
 function badgesHTML(){return `<div class="badges">${BADGES.map(b=>`<div class="badge ${S.badges.includes(b.id)?'on':''}"><span class="bico">${ICONS[b.icon]}</span><div><b>${esc(b.name)}</b><span class="muted">${esc(b.desc)}</span></div></div>`).join('')}</div>`;}
 function goHome(){if(location.search)history.replaceState(null,'',location.pathname);home();}
+function setSize(){return LENGTHS.includes(S.len)?S.len:5;}
+function lenHTML(){
+ const lens=LENGTHS.map(n=>`<button type="button" class="len${S.len===n?' on':''}" id="len${n}" data-n="${n}">${n===5?'Quick 5':n}</button>`).join('');
+ return `<div class="lenrow"><span class="quiet">Practice length</span><div class="lens" role="group" aria-label="Practice length">${lens}</div><label class="sect"><input type="checkbox" id="sect"${S.section?' checked':''}> Section timer</label><p class="quiet lennote">Ranked and daily stay at five. Length and the section timer apply to weak spots and friend challenges. Section time is 1:25 per question.</p></div>`;
+}
+function nQ(){return duel&&duel.qs?duel.qs.length:5;}
 function matchLine(h){return `${h.res==='W'?'Win':h.res==='L'?'Loss':'Draw'} vs ${esc(h.opp)} · ${h.me}/5 vs ${h.op}/5 · ${h.d>0?'+':''}${h.d}`;}
 function home(){
  cancel();duel=null;header();
@@ -119,8 +127,10 @@ function home(){
  const streak=shownStreak();
  const last=S.hist.length?S.hist[S.hist.length-1]:null;
  const streakLabel=esc('Daily streak: '+streak+best);
- show(`<div class="home"><div class="home-main"><section class="card welcome"><div class="mark" aria-hidden="true"></div><div><h1>Five questions.</h1><p class="lede">Accuracy wins. Time breaks a tie.</p></div></section><div class="chips"><div class="chip">${emblem(S.rating,true)}<span><b>${esc(tierName(S.rating))}</b><span>${Math.round(S.rating)} Elo</span></span></div><div class="chip"><b>${S.w}-${S.l}</b><span>Record</span></div><div class="chip warm"><b>${streak}</b><span>${streakLabel}</span></div></div><button type="button" class="primary play" id="go"><span class="ico on">${ICONS.sword}</span><span>Play ranked</span></button><div class="card mode-card"><div class="modelist"><button type="button" id="daily"><span class="ico">${ICONS.cal}</span><span class="mlabel"><b>Daily</b><small>Same set for everyone</small></span></button><button type="button" id="stats"><span class="ico">${ICONS.target}</span><span class="mlabel"><b>Weak spots</b><small>Your lowest patterns</small></span></button><button type="button" id="share"><span class="ico">${ICONS.users}</span><span class="mlabel"><b>Challenge a friend</b><small>Play a set, then share the link</small></span></button></div></div>${last?`<p class="quiet">Last match: ${matchLine(last)}</p>`:''}</div><aside class="card"><h2>Leaderboard</h2>${board()}</aside></div><details class="more card"><summary>Badges and history</summary><h2>Badges</h2>${badgesHTML()}<h2>Recent matches</h2>${S.hist.length?S.hist.slice(-5).reverse().map(h=>`<div class="match">${matchLine(h)}</div>`).join(''):'<p class="muted">No matches yet.</p>'}<div class="actions"><button type="button" class="text" id="nm">Change name</button></div></details>`);
+ show(`<div class="home"><div class="home-main"><section class="card welcome"><div class="mark" aria-hidden="true"></div><div><h1>Five questions.</h1><p class="lede">Accuracy wins. Time breaks a tie.</p></div></section><div class="chips"><div class="chip">${emblem(S.rating,true)}<span><b>${esc(tierName(S.rating))}</b><span>${Math.round(S.rating)} Elo</span></span></div><div class="chip"><b>${S.w}-${S.l}</b><span>Record</span></div><div class="chip warm"><b>${streak}</b><span>${streakLabel}</span></div></div><button type="button" class="primary play" id="go"><span class="ico on">${ICONS.sword}</span><span>Play ranked</span></button>${lenHTML()}<div class="card mode-card"><div class="modelist"><button type="button" id="daily"><span class="ico">${ICONS.cal}</span><span class="mlabel"><b>Daily</b><small>Same set for everyone</small></span></button><button type="button" id="stats"><span class="ico">${ICONS.target}</span><span class="mlabel"><b>Weak spots</b><small>Your lowest patterns</small></span></button><button type="button" id="share"><span class="ico">${ICONS.users}</span><span class="mlabel"><b>Challenge a friend</b><small>Play a set, then share the link</small></span></button></div></div>${last?`<p class="quiet">Last match: ${matchLine(last)}</p>`:''}</div><aside class="card"><h2>Leaderboard</h2>${board()}</aside></div><details class="more card"><summary>Badges and history</summary><h2>Badges</h2>${badgesHTML()}<h2>Recent matches</h2>${S.hist.length?S.hist.slice(-5).reverse().map(h=>`<div class="match">${matchLine(h)}</div>`).join(''):'<p class="muted">No matches yet.</p>'}<div class="actions"><button type="button" class="text" id="nm">Change name</button></div></details>`);
  $('#go').onclick=matchmake;$('#daily').onclick=startDaily;$('#stats').onclick=statsPage;$('#share').onclick=startShare;
+ document.querySelectorAll('.len').forEach(b=>{b.onclick=()=>{S.len=+b.dataset.n;save();home();};});
+ const sect=$('#sect'); if(sect)sect.onchange=()=>{S.section=sect.checked;save();};
  $('#nm').onclick=()=>{const n=prompt('Display name',S.name);if(n&&n.trim()){S.name=n.trim().slice(0,20);save();home();}};
 }
 function patternRows(){
@@ -135,14 +145,21 @@ function weakSet(rows){
  const min=Math.min(...played.map(r=>r.acc));
  return new Set(played.filter(r=>r.acc===min).map(r=>r.p));
 }
+function practiceQuestions(n){
+ n=LENGTHS.includes(n)?n:5;
+ const src=[],seen=new Set();
+ for(const q of shuffle(QUESTIONS)){if(seen.has(q))continue;seen.add(q);src.push(q);if(src.length>=n)break;}
+ return src;
+}
 function trainQuestions(){
+ const n=setSize();
  const rows=patternRows().filter(r=>r.n>0).sort((a,b)=>a.acc-b.acc||b.avg-a.avg);
  const pool=[];
- for(const r of rows){for(const q of QUESTIONS)if(q.pattern===r.p)pool.push(q);if(pool.length>=5)break;}
+ for(const r of rows){for(const q of QUESTIONS)if(q.pattern===r.p&&!pool.includes(q))pool.push(q);if(pool.length>=n)break;}
  const src=[];
  for(const q of pool)if(!src.includes(q))src.push(q);
- if(src.length<5){for(const q of shuffle(QUESTIONS))if(!src.includes(q)){src.push(q);if(src.length>=5)break;}}
- return shuffle(src).slice(0,5);
+ if(src.length<n){for(const q of shuffle(QUESTIONS))if(!src.includes(q)){src.push(q);if(src.length>=n)break;}}
+ return shuffle(src).slice(0,n);
 }
 function statsPage(){
  cancel();duel=null;header();
@@ -153,7 +170,10 @@ function statsPage(){
   const fill=r.n?Math.max(pct,8):0;
   return `<div class="chart-row${weak.has(r.p)?' weak':''}"><div class="chart-top"><span class="chart-name">${esc(r.p)}${weak.has(r.p)?' · weak spot':''}</span><span class="muted">${r.n?pct+'% · '+r.avg.toFixed(1)+'s · '+r.n+' tries':'—'}</span></div><div class="chart-bar"><i data-w="${fill}%"></i></div></div>`;
  }).join('');
- show(`<div class="stage card"><h1>Pattern stats</h1><p class="lede">Accuracy and average time from answers saved in this browser. Weak spots are your lowest patterns.</p><div class="chart">${body}</div><div class="actions"><button type="button" class="primary" id="train"${played?'':' disabled'}>Train weak spots</button><button type="button" class="text" id="hm">Home</button></div></div>`);
+ const types={};
+ for(const a of S.attempts){if(!a||!a.ty)continue;if(!types[a.ty])types[a.ty]={n:0,ok:0};types[a.ty].n++;types[a.ty].ok+=a.ok?1:0;}
+ const typeLine=Object.keys(types).sort().map(k=>{const r=types[k];return `${esc(k)} ${Math.round(r.ok/r.n*100)}% · ${r.n}`;}).join(' · ');
+ show(`<div class="stage card"><h1>Pattern stats</h1><p class="lede">Accuracy and average time from answers saved in this browser. Weak spots are your lowest patterns. Drills use your practice length.</p>${typeLine?`<p class="quiet">${typeLine}</p>`:''}<div class="chart">${body}</div><div class="actions"><button type="button" class="primary" id="train"${played?'':' disabled'}>Train weak spots · ${setSize()}</button><button type="button" class="text" id="hm">Home</button></div></div>`);
  requestAnimationFrame(()=>document.querySelectorAll('.chart-bar i').forEach(el=>{el.style.width=el.dataset.w;}));
  if(played)$('#train').onclick=startTrain;
  $('#hm').onclick=goHome;
@@ -166,9 +186,10 @@ function matchmake(){
  const g=gen;
  wait=setTimeout(()=>{if(g!==gen)return;const opp=pickOpp(),qs=shuffle(QUESTIONS).slice(0,5);begin({mode:'ranked',label:'Ranked duel',opp,qs,bot:makeBot(qs,opp)});},1200);
 }
-function startTrain(){const qs=trainQuestions(),opp=pickOpp();begin({mode:'train',label:'Weak-spot duel',opp,qs,bot:makeBot(qs,opp)});}
-function startShare(){const qs=shuffle(QUESTIONS).slice(0,5),opp=pickOpp();begin({mode:'share',label:'Challenge set',opp,qs,bot:makeBot(qs,opp)});}
-function startDaily(){const qs=dailyIds(today()).map(i=>QUESTIONS[i]);begin({mode:'daily',label:'Daily challenge · '+today()+' UTC',qs});}
+function useSection(mode){return !!S.section&&mode!=='ranked'&&mode!=='daily';}
+function startTrain(){const qs=trainQuestions(),opp=pickOpp();begin({mode:'train',label:'Weak-spot drill · '+qs.length,opp,qs,bot:makeBot(qs,opp),section:useSection('train')});}
+function startShare(){const qs=practiceQuestions(setSize()),opp=pickOpp();begin({mode:'share',label:'Challenge set · '+qs.length,opp,qs,bot:makeBot(qs,opp),section:useSection('share')});}
+function startDaily(){const qs=dailyIds(today()).map(i=>QUESTIONS[i]);begin({mode:'daily',label:'Daily challenge · '+today()+' UTC',qs,section:false});}
 function countdown(label,done){
  const g=++gen;clearInterval(tick);tick=null;let i=0;
  const step=()=>{
@@ -183,21 +204,25 @@ function countdown(label,done){
 }
 function begin(opts){countdown(opts.label,()=>start(opts));}
 function start(opts){
- duel={mode:opts.mode,label:opts.label,opp:opts.opp||null,qs:opts.qs,bot:opts.bot||null,friend:opts.friend||null,i:0,ans:[],t0:Date.now(),qStart:Date.now(),sel:null,busy:false};
+ const ranked=opts.mode==='ranked'||opts.mode==='daily';
+ const per=ranked?PER:PACE;
+ duel={mode:opts.mode,label:opts.label,opp:opts.opp||null,qs:opts.qs,bot:opts.bot||null,friend:opts.friend||null,i:0,ans:[],t0:Date.now(),qStart:Date.now(),sel:null,busy:false,section:!!opts.section&&!ranked,per,budget:opts.qs.length*per,closing:false};
  render();tick=setInterval(update,250);
 }
 function playersHTML(){
  let other;
- if(duel.bot)other=`<span>${esc(duel.opp.n)} · <span id="ot">0/5 answered</span></span>`;
- else if(duel.friend)other=`<span>${esc(duel.friend.name)} · ${duel.friend.me}/5 · ${duel.friend.sec.toFixed(1)}s</span>`;
+ const n=nQ();
+ if(duel.bot)other=`<span>${esc(duel.opp.n)} · <span id="ot">0/${n} answered</span></span>`;
+ else if(duel.friend)other=`<span>${esc(duel.friend.name)} · ${duel.friend.me}/${n} · ${duel.friend.sec.toFixed(1)}s</span>`;
  else other=`<span>Daily · streak ${shownStreak()}</span>`;
- const oppBar=duel.bot?`<div class="track opp"><i id="ob" style="width:0"></i></div>`:duel.friend?`<div class="track opp"><i style="width:${duel.friend.me*20}%"></i></div>`:`<div class="track opp"><i style="width:100%"></i></div>`;
- return `<div class="progress"><div class="progress-labels"><span>You ${duel.i}/5</span>${other}</div><div class="track"><i style="width:${duel.i*20}%"></i></div>${oppBar}</div>`;
+ const oppBar=duel.bot?`<div class="track opp"><i id="ob" style="width:0"></i></div>`:duel.friend?`<div class="track opp"><i style="width:${n?duel.friend.me/n*100:0}%"></i></div>`:`<div class="track opp"><i style="width:100%"></i></div>`;
+ return `<div class="progress"><div class="progress-labels"><span>You ${duel.i}/${n}</span>${other}</div><div class="track"><i style="width:${n?duel.i/n*100:0}%"></i></div>${oppBar}</div>`;
 }
 function render(){
  duel.busy=false;duel.sel=null;
  const q=duel.qs[duel.i];
- show(`<article class="read card stage">${playersHTML()}<div class="qtop"><span class="tag">Q${duel.i+1}/5 · ${esc(q.t)}</span><span class="timer" id="tm">1:30</span></div><div class="stim">${esc(q.s)}</div><div class="stem">${esc(q.q)}</div><p class="muted hint">Tap an answer to select it, then tap it again to submit.</p>${q.c.map((c,k)=>`<div class="ans" data-k="${k}"><button type="button" class="ch" data-k="${k}"><span class="letter">${'ABCDE'[k]}</span><span>${esc(c)}</span></button><button type="button" class="xx" hidden aria-label="Deselect">×</button></div>`).join('')}</article>`);
+ const clock=fmt(duel.section?duel.budget:duel.per);
+ show(`<article class="read card stage">${playersHTML()}<div class="qtop"><span class="tag">Q${duel.i+1}/${nQ()} · ${esc(q.t)}${q.d?' · D'+q.d:''}</span><span class="timer" id="tm">${clock}</span>${duel.section?'<span class="quiet">section</span>':''}</div><div class="stim">${esc(q.s)}</div><div class="stem">${esc(q.q)}</div><p class="muted hint">Tap an answer to select it, then tap it again to submit.</p>${q.c.map((c,k)=>`<div class="ans" data-k="${k}"><button type="button" class="ch" data-k="${k}"><span class="letter">${'ABCDE'[k]}</span><span>${esc(c)}</span></button><button type="button" class="xx" hidden aria-label="Deselect">×</button></div>`).join('')}</article>`);
  document.querySelectorAll('.ans').forEach(row=>{
   const k=+row.dataset.k;
   row.querySelector('.ch').onclick=()=>{if(!duel||duel.busy)return;if(duel.sel===k)answer(k);else{duel.sel=k;paintSel();beep(420,.04,'sine',.02);}};
@@ -214,29 +239,41 @@ function paintSel(){
 }
 function botProgress(){let el=(Date.now()-duel.t0)/1000,c=0,acc=0;for(const b of duel.bot){acc+=b.t;if(el>=acc)c++;else break;}return c;}
 function fmt(left){const s=Math.max(0,left);return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;}
+function trimAttempts(){if(S.attempts.length>2000)S.attempts.splice(0,S.attempts.length-2000);}
+function logAttempt(q,ok,t){S.attempts.push({p:q.pattern,ty:q.t,ok:ok?1:0,t});trimAttempts();}
+function expireSection(){
+ if(!duel||duel.closing)return;
+ while(duel.i<duel.qs.length){
+  const q=duel.qs[duel.i],t=Math.max(0,(Date.now()-duel.qStart)/1000);
+  duel.ans.push({k:-1,ok:false,t});
+  logAttempt(q,0,t);
+  duel.i++;duel.qStart=Date.now();
+ }
+ save();finish();
+}
 function update(){
- if(!duel||duel.busy)return;
- const left=PER-Math.floor((Date.now()-duel.qStart)/1000),t=$('#tm');
- if(t){t.textContent=fmt(left);t.className='timer'+(left<=15?' low':'');}
+ if(!duel||duel.busy||duel.closing)return;
+ const left=duel.section?duel.budget-Math.floor((Date.now()-duel.t0)/1000):duel.per-Math.floor((Date.now()-duel.qStart)/1000);
+ const t=$('#tm');
+ if(t){t.textContent=fmt(left);t.className='timer'+((duel.section?left<=60:left<=15)?' low':'');}
  if(duel.bot){
-  const bp=botProgress(),ob=$('#ob'),ot=$('#ot'),next=`${bp}/5 answered`;
-  if(ob)ob.style.width=bp*20+'%';
+  const bp=botProgress(),n=nQ(),ob=$('#ob'),ot=$('#ot'),next=`${bp}/${n} answered`;
+  if(ob)ob.style.width=(n?bp/n*100:0)+'%';
   if(ot&&ot.textContent!==next){ot.textContent=next;ot.classList.remove('pop');void ot.offsetWidth;ot.classList.add('pop');}
  }
- if(left<=0)answer(-1);
+ if(left<=0){if(duel.section)expireSection();else answer(-1);}
 }
 function advance(){
  if(!duel)return;
  duel.i++;duel.qStart=Date.now();duel.sel=null;
- if(duel.i<5)render();else finish();
+ if(duel.i<duel.qs.length)render();else finish();
 }
 function answer(k){
- if(!duel||duel.busy)return;
+ if(!duel||duel.busy||duel.closing)return;
  duel.busy=true;
  const q=duel.qs[duel.i],t=(Date.now()-duel.qStart)/1000,ok=k===q.a;
  duel.ans.push({k,ok,t});
- S.attempts.push({p:q.pattern,ok:ok?1:0,t});
- if(S.attempts.length>400)S.attempts.splice(0,S.attempts.length-400);
+ logAttempt(q,ok,t);
  save();
  const g=gen;
  const go=()=>{if(g!==gen||!duel)return;advance();};
@@ -262,9 +299,9 @@ function challengeURL(qs,me,mt){
 }
 function friendFromParams(params){
  const ids=String(params.get('duel')||'').split('.').map(Number);
- if(ids.length!==5||ids.some(n=>!Number.isInteger(n)||n<0||n>=QUESTIONS.length)||new Set(ids).size!==5)return null;
+ if(!LENGTHS.includes(ids.length)||ids.some(n=>!Number.isInteger(n)||n<0||n>=QUESTIONS.length)||new Set(ids).size!==ids.length)return null;
  const me=Number(params.get('me')),sec=Number(params.get('sec'));
- if(!Number.isInteger(me)||me<0||me>5||!Number.isFinite(sec)||sec<0)return null;
+ if(!Number.isInteger(me)||me<0||me>ids.length||!Number.isFinite(sec)||sec<0)return null;
  let name=(params.get('name')||'Friend').replace(/\s+/g,' ').trim().slice(0,20);
  if(!name)name='Friend';
  return {qs:ids.map(i=>QUESTIONS[i]),me,sec,name};
@@ -280,6 +317,8 @@ function animateNum(el,from,to){
  requestAnimationFrame(step);
 }
 function finish(){
+ if(!duel||duel.closing)return;
+ duel.closing=true;
  clearInterval(tick);tick=null;
  const me=duel.ans.filter(a=>a.ok).length,mt=duel.ans.reduce((s,a)=>s+a.t,0);
  let score=null,op=0,ot=0,d=0,headline,sub,cards='',prevRating=S.rating;
@@ -295,22 +334,22 @@ function finish(){
    sub=`Rating <b id="elo" class="elo-num">${prevRating}</b> <b class="delta ${d>0?'up':d<0?'down':''}">${d>0?'+':''}${d}</b> · ${tierHTML(S.rating)}`;
   }else if(duel.mode==='share'){headline=score===1?'VICTORY':score===0?'DEFEAT':'DRAW';sub='Share the link. Rating unchanged.';}
   else{headline=score===1?'VICTORY':score===0?'DEFEAT':'DRAW';sub='Practice duel · rating unchanged';}
-  cards=`<p class="scoreline"><b>${esc(S.name)}</b> ${me}/5 · ${mt.toFixed(1)}s<br><b>${esc(duel.opp.n)}</b> ${op}/5 · ${ot.toFixed(1)}s</p>`;
+  cards=`<p class="scoreline"><b>${esc(S.name)}</b> ${me}/${nQ()} · ${mt.toFixed(1)}s<br><b>${esc(duel.opp.n)}</b> ${op}/${nQ()} · ${ot.toFixed(1)}s</p>`;
  }else if(duel.friend){
   op=duel.friend.me;ot=duel.friend.sec;
   score=me>op?1:me<op?0:(mt<ot?1:mt>ot?0:.5);
   headline=score===1?'YOU WIN':score===0?'YOU LOSE':'DRAW';
   sub=`Head to head with ${esc(duel.friend.name)}`;
-  cards=`<p class="scoreline"><b>${esc(S.name)}</b> ${me}/5 · ${mt.toFixed(1)}s<br><b>${esc(duel.friend.name)}</b> ${op}/5 · ${ot.toFixed(1)}s</p>`;
+  cards=`<p class="scoreline"><b>${esc(S.name)}</b> ${me}/${nQ()} · ${mt.toFixed(1)}s<br><b>${esc(duel.friend.name)}</b> ${op}/${nQ()} · ${ot.toFixed(1)}s</p>`;
  }else{
   recordDaily(me,mt);
-  headline=`${me}/5`;
+  headline=`${me}/${nQ()}`;
   sub=`Daily result · ${mt.toFixed(1)}s · streak ${S.dailyStreak}`;
  }
  const before=new Set(S.badges);
  if(duel.mode==='ranked'&&score===1)give('first');
  if((S.streak||0)>=5)give('streak5');
- if(me===5)give('perfect');
+ if(me===nQ()&&nQ()>0)give('perfect');
  if((S.dailyStreak||0)>=7&&S.dailyLast===today())give('daily7');
  const fresh=S.badges.filter(id=>!before.has(id));
  save();header();
@@ -318,11 +357,16 @@ function finish(){
  const klass=score===1?'win':score===0?'loss':'';
  const again=duel.mode==='ranked'?'Rematch queue':duel.mode==='train'?'Train again':duel.mode==='daily'?'Play daily again':duel.mode==='share'?'New challenge set':'Replay challenge';
  const url=challengeURL(duel.qs,me,mt);
- const review=duel.qs.map((q,i)=>{const a=duel.ans[i];const yours=a.ok?'Correct':'You: '+(a.k<0?'timed out':'('+'ABCDE'[a.k]+')');const oppBit=duel.bot?` · opp ${duel.bot[i].ok?'✓':'✗'}`:'';return `<div class="rev ${a.ok?'':'x'}"><b>Q${i+1} · ${esc(q.t)}</b> — ${esc(yours)} · Answer (${'ABCDE'[q.a]}) · ${a.t.toFixed(1)}s${oppBit}<br><b class="pat">Pattern: ${esc(q.pattern)}</b><br><span class="muted">${esc(q.e)}</span></div>`;}).join('');
- show(`<div class="stage"><article class="result card"><p class="kicker">${esc(duel.label||'Result')}</p><h1 class="big ${klass}">${headline}</h1><p>${sub}</p>${fresh.length?`<p>Badge unlocked: ${fresh.map(id=>esc(BADGES.find(b=>b.id===id).name)).join(', ')}</p>`:''}${cards}<div class="actions"><button type="button" class="primary" id="again">${again}</button><button type="button" class="text" id="hm">Home</button></div></article><div class="card"><h2>Challenge a friend</h2><p class="muted">Same five questions. They'll see your score and time.</p><input id="link" class="link" readonly value="${esc(url)}"><div class="actions"><button type="button" class="text" id="copy">Copy link</button></div></div><div class="card"><h2>Review</h2>${review}</div></div>`);
+ const groups=new Map();
+ duel.qs.forEach((q,i)=>{const k=q.t||'Other';if(!groups.has(k))groups.set(k,[]);groups.get(k).push(i);});
+ const review=[...groups].map(([type,idxs])=>{
+  const body=idxs.map(i=>{const q=duel.qs[i],a=duel.ans[i]||{ok:false,k:-1,t:0};const yours=a.ok?'Correct':'You: '+(a.k<0?'timed out':'('+'ABCDE'[a.k]+')');const oppBit=duel.bot?` · opp ${duel.bot[i].ok?'✓':'✗'}`:'';return `<div class="rev ${a.ok?'':'x'}"><b>Q${i+1} · ${esc(q.t)}${q.d?' · D'+q.d:''}</b> — ${esc(yours)} · Answer (${'ABCDE'[q.a]}) · ${a.t.toFixed(1)}s${oppBit}<br><b class="pat">Pattern: ${esc(q.pattern)}</b><br><span class="muted">${esc(q.e)}</span></div>`;}).join('');
+  return `<section class="revgroup"><h3>${esc(type)} · ${idxs.length}</h3>${body}</section>`;
+ }).join('');
+ show(`<div class="stage"><article class="result card"><p class="kicker">${esc(duel.label||'Result')}</p><h1 class="big ${klass}">${headline}</h1><p>${sub}</p>${fresh.length?`<p>Badge unlocked: ${fresh.map(id=>esc(BADGES.find(b=>b.id===id).name)).join(', ')}</p>`:''}${cards}<div class="actions"><button type="button" class="primary" id="again">${again}</button><button type="button" class="text" id="hm">Home</button></div></article><div class="card"><h2>Challenge a friend</h2><p class="muted">Same ${nQ()} questions, in the same order. They'll see your score and time.</p><input id="link" class="link" readonly value="${esc(url)}"><div class="actions"><button type="button" class="text" id="copy">Copy link</button></div></div><div class="card"><h2>Review</h2><div class="review-scroll">${review}</div></div></div>`);
  const elo=$('#elo');if(elo)animateNum(elo,prevRating,S.rating);
- if(me===5)burst($('.result h1'));
- $('#again').onclick=()=>{if(duel.mode==='ranked')matchmake();else if(duel.mode==='train')startTrain();else if(duel.mode==='daily')startDaily();else if(duel.mode==='share')startShare();else begin({mode:'friend',label:'Friend challenge',qs:duel.qs,friend:duel.friend});};
+ if(me===nQ()&&nQ()>0)burst($('.result h1'));
+ $('#again').onclick=()=>{const mode=duel.mode,qs=duel.qs,friend=duel.friend;if(mode==='ranked')matchmake();else if(mode==='train')startTrain();else if(mode==='daily')startDaily();else if(mode==='share')startShare();else begin({mode:'friend',label:'Friend challenge',qs,friend,section:useSection('friend')});};
  $('#hm').onclick=goHome;
  $('#copy').onclick=async()=>{const el=$('#link');try{await navigator.clipboard.writeText(el.value);$('#copy').textContent='Copied';}catch(e){el.focus();el.select();$('#copy').textContent='Select the link to copy';}};
 }
@@ -330,8 +374,8 @@ function friendIntro(params){
  cancel();header();
  const ch=friendFromParams(params);
  if(!ch){goHome();return;}
- show(`<div class="stage card"><p class="kicker">Friend challenge</p><h1>${esc(ch.name)} challenged you.</h1><p class="lede">Same 5 questions. ${esc(ch.name)} scored ${ch.me}/5 in ${ch.sec.toFixed(1)}s. Accuracy wins; time breaks ties.</p><div class="actions"><button type="button" class="primary" id="accept">Accept challenge</button><button type="button" class="text" id="hm">Not now</button></div></div>`);
- $('#accept').onclick=()=>begin({mode:'friend',label:'Friend challenge',qs:ch.qs,friend:{name:ch.name,me:ch.me,sec:ch.sec}});
+ show(`<div class="stage card"><p class="kicker">Friend challenge</p><h1>${esc(ch.name)} challenged you.</h1><p class="lede">Same ${ch.qs.length} questions. ${esc(ch.name)} scored ${ch.me}/${ch.qs.length} in ${ch.sec.toFixed(1)}s. Accuracy wins; time breaks ties.</p><div class="actions"><button type="button" class="primary" id="accept">Accept challenge</button><button type="button" class="text" id="hm">Not now</button></div></div>`);
+ $('#accept').onclick=()=>begin({mode:'friend',label:'Friend challenge',qs:ch.qs,friend:{name:ch.name,me:ch.me,sec:ch.sec},section:useSection('friend')});
  $('#hm').onclick=goHome;
 }
 function boot(){applyTheme();renderTheme();renderMute();save();const params=new URLSearchParams(location.search);if(params.get('duel'))friendIntro(params);else home();}

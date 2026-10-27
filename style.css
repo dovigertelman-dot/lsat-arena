@@ -223,6 +223,17 @@ tr.you td{background:var(--accent-soft);font-weight:600}
 .chart-bar{height:8px;border-radius:99px;background:var(--track);overflow:hidden}
 .chart-bar i{display:block;height:100%;width:0;border-radius:99px;background:var(--accent);transition:width .45s ease}
 .chart-row.weak .chart-name{font-weight:600;color:var(--warm-ink)}
+.chart{max-height:70vh;overflow:auto;padding-right:4px}
+.lenrow{margin:0 0 14px}
+.lens{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+button.len{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600}
+button.len.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+button.len.on:hover{background:var(--accent);filter:brightness(1.06)}
+.sect{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);margin-top:4px}
+.lennote{margin:8px 0 0;font-size:13px}
+.review-scroll{max-height:70vh;overflow:auto;padding-right:4px}
+.revgroup{margin:0 0 8px}
+.revgroup h3{margin:14px 0 4px;font-size:15px}
 .link{
   width:100%;background:var(--bg);color:var(--ink);
   border:1px solid var(--line);border-radius:14px;padding:12px;
