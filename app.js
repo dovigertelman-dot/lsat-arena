@@ -118,7 +118,8 @@ function home(){
  const best=S.dailyBest&&S.dailyBest.day===today()?` · today ${S.dailyBest.me}/5`:'';
  const streak=shownStreak();
  const last=S.hist.length?S.hist[S.hist.length-1]:null;
- show(`<h1>Five questions.</h1><p class="lede">Accuracy wins. Time breaks a tie.</p><p class="quiet">${esc('Daily streak: '+streak+best)}</p><button type="button" class="primary play" id="go">Play ranked</button><div class="modelist"><button type="button" id="daily"><span>Daily</span><small>Same set for everyone</small></button><button type="button" id="stats"><span>Weak spots</span><small>Your lowest patterns</small></button><button type="button" id="share"><span>Challenge a friend</span><small>Play a set, then share the link</small></button></div>${last?`<p class="quiet">Last match: ${matchLine(last)}</p>`:''}<details class="more"><summary>More</summary><h2>Leaderboard</h2>${board()}<h2>Badges</h2>${badgesHTML()}<h2>Recent matches</h2>${S.hist.length?S.hist.slice(-5).reverse().map(h=>`<div class="match">${matchLine(h)}</div>`).join(''):'<p class="muted">No matches yet.</p>'}<div class="actions"><button type="button" class="text" id="nm">Change name</button></div></details>`);
+ const streakLabel=esc('Daily streak: '+streak+best);
+ show(`<div class="home"><div class="home-main"><section class="card welcome"><div class="mark" aria-hidden="true"></div><div><h1>Five questions.</h1><p class="lede">Accuracy wins. Time breaks a tie.</p></div></section><div class="chips"><div class="chip">${emblem(S.rating,true)}<span><b>${esc(tierName(S.rating))}</b><span>${Math.round(S.rating)} Elo</span></span></div><div class="chip"><b>${S.w}-${S.l}</b><span>Record</span></div><div class="chip warm"><b>${streak}</b><span>${streakLabel}</span></div></div><button type="button" class="primary play" id="go"><span class="ico on">${ICONS.sword}</span><span>Play ranked</span></button><div class="card mode-card"><div class="modelist"><button type="button" id="daily"><span class="ico">${ICONS.cal}</span><span class="mlabel"><b>Daily</b><small>Same set for everyone</small></span></button><button type="button" id="stats"><span class="ico">${ICONS.target}</span><span class="mlabel"><b>Weak spots</b><small>Your lowest patterns</small></span></button><button type="button" id="share"><span class="ico">${ICONS.users}</span><span class="mlabel"><b>Challenge a friend</b><small>Play a set, then share the link</small></span></button></div></div>${last?`<p class="quiet">Last match: ${matchLine(last)}</p>`:''}</div><aside class="card"><h2>Leaderboard</h2>${board()}</aside></div><details class="more card"><summary>Badges and history</summary><h2>Badges</h2>${badgesHTML()}<h2>Recent matches</h2>${S.hist.length?S.hist.slice(-5).reverse().map(h=>`<div class="match">${matchLine(h)}</div>`).join(''):'<p class="muted">No matches yet.</p>'}<div class="actions"><button type="button" class="text" id="nm">Change name</button></div></details>`);
  $('#go').onclick=matchmake;$('#daily').onclick=startDaily;$('#stats').onclick=statsPage;$('#share').onclick=startShare;
  $('#nm').onclick=()=>{const n=prompt('Display name',S.name);if(n&&n.trim()){S.name=n.trim().slice(0,20);save();home();}};
 }
@@ -152,7 +153,7 @@ function statsPage(){
   const fill=r.n?Math.max(pct,8):0;
   return `<div class="chart-row${weak.has(r.p)?' weak':''}"><div class="chart-top"><span class="chart-name">${esc(r.p)}${weak.has(r.p)?' · weak spot':''}</span><span class="muted">${r.n?pct+'% · '+r.avg.toFixed(1)+'s · '+r.n+' tries':'—'}</span></div><div class="chart-bar"><i data-w="${fill}%"></i></div></div>`;
  }).join('');
- show(`<h1>Pattern stats</h1><p class="lede">Accuracy and average time from answers saved in this browser. Weak spots are your lowest patterns.</p><div class="chart">${body}</div><div class="actions"><button type="button" class="primary" id="train"${played?'':' disabled'}>Train weak spots</button><button type="button" class="text" id="hm">Home</button></div>`);
+ show(`<div class="stage card"><h1>Pattern stats</h1><p class="lede">Accuracy and average time from answers saved in this browser. Weak spots are your lowest patterns.</p><div class="chart">${body}</div><div class="actions"><button type="button" class="primary" id="train"${played?'':' disabled'}>Train weak spots</button><button type="button" class="text" id="hm">Home</button></div></div>`);
  requestAnimationFrame(()=>document.querySelectorAll('.chart-bar i').forEach(el=>{el.style.width=el.dataset.w;}));
  if(played)$('#train').onclick=startTrain;
  $('#hm').onclick=goHome;
@@ -161,7 +162,7 @@ function pickOpp(){return [...BOTS].sort((a,b)=>Math.abs(a.r-S.rating)-Math.abs(
 function makeBot(qs,opp){return qs.map(()=>({ok:Math.random()<opp.acc,t:Math.max(12,opp.spd*(0.6+Math.random()*0.8))}));}
 function matchmake(){
  cancel();
- show(`<div class="count"><p class="kicker">Ranked</p><h1>Finding an opponent</h1><p class="quiet">Near ${Math.round(S.rating)} Elo</p></div>`);
+ show(`<div class="count card stage"><p class="kicker">Ranked</p><h1>Finding an opponent</h1><p class="quiet">Near ${Math.round(S.rating)} Elo</p></div>`);
  const g=gen;
  wait=setTimeout(()=>{if(g!==gen)return;const opp=pickOpp(),qs=shuffle(QUESTIONS).slice(0,5);begin({mode:'ranked',label:'Ranked duel',opp,qs,bot:makeBot(qs,opp)});},1200);
 }
@@ -174,7 +175,7 @@ function countdown(label,done){
   if(g!==gen)return;
   if(i>=COUNT_FRAMES.length){done();return;}
   const word=COUNT_FRAMES[i++];
-  show(`<div class="count"><div class="big">${word}</div><p class="quiet">${esc(label)}</p></div>`);
+  show(`<div class="count card stage"><div class="big">${word}</div><p class="quiet">${esc(label)}</p></div>`);
   if(word==='Go')beep(880,.14,'sine',.04);else soundTick();
   wait=setTimeout(step,word==='Go'?650:1000);
  };
@@ -196,7 +197,7 @@ function playersHTML(){
 function render(){
  duel.busy=false;duel.sel=null;
  const q=duel.qs[duel.i];
- show(`<article class="read">${playersHTML()}<div class="qtop"><span class="tag">Q${duel.i+1}/5 · ${esc(q.t)}</span><span class="timer" id="tm">1:30</span></div><div class="stim">${esc(q.s)}</div><div class="stem">${esc(q.q)}</div><p class="muted hint">Tap an answer to select it, then tap it again to submit.</p>${q.c.map((c,k)=>`<div class="ans" data-k="${k}"><button type="button" class="ch" data-k="${k}"><span class="letter">${'ABCDE'[k]}</span><span>${esc(c)}</span></button><button type="button" class="xx" hidden aria-label="Deselect">×</button></div>`).join('')}</article>`);
+ show(`<article class="read card stage">${playersHTML()}<div class="qtop"><span class="tag">Q${duel.i+1}/5 · ${esc(q.t)}</span><span class="timer" id="tm">1:30</span></div><div class="stim">${esc(q.s)}</div><div class="stem">${esc(q.q)}</div><p class="muted hint">Tap an answer to select it, then tap it again to submit.</p>${q.c.map((c,k)=>`<div class="ans" data-k="${k}"><button type="button" class="ch" data-k="${k}"><span class="letter">${'ABCDE'[k]}</span><span>${esc(c)}</span></button><button type="button" class="xx" hidden aria-label="Deselect">×</button></div>`).join('')}</article>`);
  document.querySelectorAll('.ans').forEach(row=>{
   const k=+row.dataset.k;
   row.querySelector('.ch').onclick=()=>{if(!duel||duel.busy)return;if(duel.sel===k)answer(k);else{duel.sel=k;paintSel();beep(420,.04,'sine',.02);}};
@@ -318,7 +319,7 @@ function finish(){
  const again=duel.mode==='ranked'?'Rematch queue':duel.mode==='train'?'Train again':duel.mode==='daily'?'Play daily again':duel.mode==='share'?'New challenge set':'Replay challenge';
  const url=challengeURL(duel.qs,me,mt);
  const review=duel.qs.map((q,i)=>{const a=duel.ans[i];const yours=a.ok?'Correct':'You: '+(a.k<0?'timed out':'('+'ABCDE'[a.k]+')');const oppBit=duel.bot?` · opp ${duel.bot[i].ok?'✓':'✗'}`:'';return `<div class="rev ${a.ok?'':'x'}"><b>Q${i+1} · ${esc(q.t)}</b> — ${esc(yours)} · Answer (${'ABCDE'[q.a]}) · ${a.t.toFixed(1)}s${oppBit}<br><b class="pat">Pattern: ${esc(q.pattern)}</b><br><span class="muted">${esc(q.e)}</span></div>`;}).join('');
- show(`<article class="result"><p class="kicker">${esc(duel.label||'Result')}</p><h1 class="big ${klass}">${headline}</h1><p>${sub}</p>${fresh.length?`<p>Badge unlocked: ${fresh.map(id=>esc(BADGES.find(b=>b.id===id).name)).join(', ')}</p>`:''}${cards}<div class="actions"><button type="button" class="primary" id="again">${again}</button><button type="button" class="text" id="hm">Home</button></div></article><h2>Challenge a friend</h2><p class="muted">Same five questions. They'll see your score and time.</p><input id="link" class="link" readonly value="${esc(url)}"><div class="actions"><button type="button" class="text" id="copy">Copy link</button></div><h2>Review</h2>${review}`);
+ show(`<div class="stage"><article class="result card"><p class="kicker">${esc(duel.label||'Result')}</p><h1 class="big ${klass}">${headline}</h1><p>${sub}</p>${fresh.length?`<p>Badge unlocked: ${fresh.map(id=>esc(BADGES.find(b=>b.id===id).name)).join(', ')}</p>`:''}${cards}<div class="actions"><button type="button" class="primary" id="again">${again}</button><button type="button" class="text" id="hm">Home</button></div></article><div class="card"><h2>Challenge a friend</h2><p class="muted">Same five questions. They'll see your score and time.</p><input id="link" class="link" readonly value="${esc(url)}"><div class="actions"><button type="button" class="text" id="copy">Copy link</button></div></div><div class="card"><h2>Review</h2>${review}</div></div>`);
  const elo=$('#elo');if(elo)animateNum(elo,prevRating,S.rating);
  if(me===5)burst($('.result h1'));
  $('#again').onclick=()=>{if(duel.mode==='ranked')matchmake();else if(duel.mode==='train')startTrain();else if(duel.mode==='daily')startDaily();else if(duel.mode==='share')startShare();else begin({mode:'friend',label:'Friend challenge',qs:duel.qs,friend:duel.friend});};
@@ -329,7 +330,7 @@ function friendIntro(params){
  cancel();header();
  const ch=friendFromParams(params);
  if(!ch){goHome();return;}
- show(`<p class="kicker">Friend challenge</p><h1>${esc(ch.name)} challenged you.</h1><p class="lede">Same 5 questions. ${esc(ch.name)} scored ${ch.me}/5 in ${ch.sec.toFixed(1)}s. Accuracy wins; time breaks ties.</p><div class="actions"><button type="button" class="primary" id="accept">Accept challenge</button><button type="button" class="text" id="hm">Not now</button></div>`);
+ show(`<div class="stage card"><p class="kicker">Friend challenge</p><h1>${esc(ch.name)} challenged you.</h1><p class="lede">Same 5 questions. ${esc(ch.name)} scored ${ch.me}/5 in ${ch.sec.toFixed(1)}s. Accuracy wins; time breaks ties.</p><div class="actions"><button type="button" class="primary" id="accept">Accept challenge</button><button type="button" class="text" id="hm">Not now</button></div></div>`);
  $('#accept').onclick=()=>begin({mode:'friend',label:'Friend challenge',qs:ch.qs,friend:{name:ch.name,me:ch.me,sec:ch.sec}});
  $('#hm').onclick=goHome;
 }
