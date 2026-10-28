@@ -10,6 +10,7 @@ Ranked duels and the daily challenge are five original LR questions. Weak spots,
 
 - Ranked duels open with a 3, 2, 1, Go countdown. Tap an answer to select it, tap again to submit, or tap × to clear it.
 - The bank has 585 original questions across the main LR types, tagged with pattern and difficulty. About 30% are easy, 40% medium, and 30% hard. Nothing is taken from a PrepTest.
+- Study Notes (`notes.html`) is the plain-English reference. The wording lives in `notes-source.md`.
 - Pattern stats track accuracy and average time, including by question type. Train weak spots draws an unduplicated set from your lowest patterns.
 - The daily challenge is the same five questions for everyone on a UTC date, with a streak.
 - Bronze, Silver, Gold, Platinum, and Diamond follow your Elo. Badges mark a first ranked win, a 5-win streak, a perfect 5/5, and a 7-day daily streak.

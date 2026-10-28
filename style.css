@@ -139,7 +139,41 @@ button.play{
   width:100%;text-align:left;padding:12px 4px;border-radius:14px;
   border-bottom:1px solid var(--line);font-weight:600;background:transparent;
 }
-.modelist button:last-child{border-bottom:0}
+.modelist button:last-child,.modelist a:last-child{border-bottom:0}
+.modelist a{
+  display:flex;flex-direction:row;align-items:center;gap:12px;
+  width:100%;text-align:left;padding:12px 4px;border-radius:14px;
+  border-bottom:1px solid var(--line);font-weight:600;font-size:16px;
+  background:transparent;color:var(--ink);text-decoration:none;
+}
+.modelist a small{color:var(--muted);font-weight:400;font-size:13px}
+.modelist a:hover{background:var(--accent-soft)}
+a.logo{text-decoration:none;color:var(--ink)}
+.notes{max-width:42rem}
+.notes .back{
+  display:inline-flex;align-items:center;margin:0 0 18px;
+  color:var(--muted);font-weight:600;font-size:14px;text-decoration:none;
+}
+.notes .back:hover{color:var(--ink);background:transparent}
+.notes h1{margin-bottom:10px}
+.notes .sub{font-style:italic;color:var(--muted);line-height:1.65;margin:0 0 8px;max-width:62ch}
+.notes .revised{font-style:italic;color:var(--muted);font-size:14px;line-height:1.5;margin:0 0 22px}
+.notes .toc{margin-bottom:16px}
+.notes .toc ol{margin:0;padding-left:1.25rem}
+.notes .toc li{margin:0 0 6px;line-height:1.45}
+.notes .toc a{color:var(--accent);text-decoration:none;font-weight:600}
+.notes .toc a:hover{text-decoration:underline}
+.notes article{margin:0 0 14px;scroll-margin-top:84px}
+.notes article h2{font-size:1.2rem;line-height:1.35;letter-spacing:-.02em;margin:0 0 12px}
+.notes ul{margin:0;padding-left:1.2rem}
+.notes li{margin:0 0 10px;line-height:1.7}
+.notes li:last-child{margin-bottom:0}
+.notes p{margin:14px 0 0;line-height:1.7;max-width:65ch}
+.notes .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0}
+.notes table{width:100%;min-width:34rem;border-collapse:collapse;font-size:15px;line-height:1.55}
+.notes th,.notes td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.notes th{font-size:13px;font-weight:600;color:var(--muted);background:var(--bg)}
+.notes tr:last-child td{border-bottom:0}
 .mlabel{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 .modelist button small{color:var(--muted);font-weight:400;font-size:13px}
 .modelist button:hover{background:var(--accent-soft)}
